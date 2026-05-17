@@ -1,0 +1,20 @@
+- targets:
+    - host.docker.internal:8003
+  labels:
+    service: weather-app1
+    env: local
+
+# Add more local services here. Each service must expose /metrics.
+# Run host services with --host 0.0.0.0 so Docker Prometheus can reach them.
+#
+# - targets:
+#     - host.docker.internal:8000
+#   labels:
+#     service: app2
+#     env: local
+#
+# - targets:
+#     - host.docker.internal:9000
+#   labels:
+#     service: app3
+#     env: local
