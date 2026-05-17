@@ -103,6 +103,8 @@ services:
       - "9100:9100"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    env_file:
+      - ./apps/incident-agent-workflow/.env
     volumes:
       - ./apps/incident-agent-workflow/logs:/app/logs
       # Log files — Investigation Agent reads these directly
