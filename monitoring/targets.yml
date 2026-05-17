@@ -1,5 +1,5 @@
 - targets:
-    - host.docker.internal:8003
+    - host.docker.internal:8000
   labels:
     service: weather-app1
     env: local

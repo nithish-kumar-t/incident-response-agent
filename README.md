@@ -28,7 +28,7 @@ Run the weather app:
 
 ```bash
 cd apps/weather-app1
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8003
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8085
 ```
 
 Run monitoring:
