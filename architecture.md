@@ -346,7 +346,7 @@ incident-response-agent/
     ├── promtail-config.yml         # Ships app logs to Loki
     └── grafana/provisioning/       # Datasource auto-provision
 ```
-
+![alt text](<Service Agent Flow-2026-05-17-082945.png>)
 ---
 
 ## Docker stack components
