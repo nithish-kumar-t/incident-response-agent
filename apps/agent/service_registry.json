@@ -1,0 +1,32 @@
+{
+  "_comment": "Add one entry per service. Paths are absolute. log_paths keys: service, error, api (any subset is fine).",
+  "payment-api": {
+    "health_url": "http://payment-api:8080/health",
+    "log_paths": {
+      "service": "/var/log/payment-api/app.log",
+      "error":   "/var/log/payment-api/error.log",
+      "api":     "/var/log/payment-api/access.log"
+    },
+    "repo_path": "/opt/repos/payment-api",
+    "language":  "python"
+  },
+  "user-service": {
+    "health_url": "http://user-service:9090/health",
+    "log_paths": {
+      "service": "/var/log/user-service/app.log",
+      "error":   "/var/log/user-service/error.log",
+      "api":     "/var/log/user-service/api.log"
+    },
+    "repo_path": "/opt/repos/user-service",
+    "language":  "java"
+  },
+  "order-service": {
+    "health_url": "http://order-service:7070/health",
+    "log_paths": {
+      "service": "/var/log/order-service/app.log",
+      "error":   "/var/log/order-service/error.log"
+    },
+    "repo_path": "/opt/repos/order-service",
+    "language":  "go"
+  }
+}
