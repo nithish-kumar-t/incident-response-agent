@@ -64,25 +64,30 @@ def _build_html(result: dict) -> str:
     started    = result.get("started_at", "")
     completed  = result.get("completed_at", "")
 
-    severity   = triage.get("severity", "unknown").lower()
-    svc        = _escape(triage.get("service_name", "unknown"))
-    alert      = _escape(triage.get("error_summary", ""))
-    err_type   = _escape(triage.get("error_type", ""))
-    key_inds   = triage.get("key_indicators", [])
-    actions    = triage.get("actions_taken", [])
+    severity   = (triage.get("severity") or "unknown").lower()
+    svc        = _escape(triage.get("service_name") or triage.get("service") or "unknown")
+    alert      = _escape(triage.get("error_summary") or triage.get("error_message") or "")
+    err_type   = _escape(triage.get("error_type") or "")
+    key_inds   = triage.get("key_indicators") or []
+    actions    = triage.get("actions_taken") or []
 
-    hypothesis = _escape(invest.get("root_cause_hypothesis", "—"))
-    confidence = _escape(invest.get("confidence", "—"))
-    inference  = _escape(invest.get("inference", "—"))
-    stack      = invest.get("stack_trace", "")
+    hypothesis = _escape(invest.get("root_cause_hypothesis") or invest.get("hypothesis") or "—")
+    confidence = _escape(invest.get("confidence") or "—")
+    inference  = _escape(invest.get("inference") or invest.get("analysis") or "—")
+    stack      = invest.get("stack_trace") or ""
 
-    root_cause = _escape(code.get("root_cause", "—"))
-    fix        = _escape(code.get("fix_suggestion", "—"))
-    depth      = _escape(code.get("analysis_depth", "—"))
-    complexity = _escape(code.get("complexity_assessment", "—"))
-    next_steps = code.get("recommended_next_steps", [])
-    alt_sol    = code.get("alternative_solutions", [])
-    aff_code   = code.get("affected_code", [])
+    root_cause = _escape(code.get("root_cause") or "—")
+    fix        = _escape(code.get("fix_suggestion") or code.get("fix") or "—")
+    depth      = _escape(code.get("analysis_depth") or "—")
+    complexity = _escape(code.get("complexity_assessment") or "—")
+    next_steps = code.get("recommended_next_steps") or code.get("next_steps") or []
+    alt_sol    = code.get("alternative_solutions") or []
+    aff_code   = code.get("affected_code") or []
+
+    # Fallback: if structured fields are missing, show raw LLM output in the PDF
+    triage_raw = triage.get("raw_output", "")
+    invest_raw = invest.get("raw_output", "")
+    code_raw   = code.get("raw_output", "")
 
     sev_color  = _severity_color(severity)
     sev_bg     = _severity_bg(severity)
@@ -143,7 +148,10 @@ def _build_html(result: dict) -> str:
   .tag {{ display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
            background: #e2e8f0; color: #4a5568; margin: 2px; }}
 
-  .confidence-{confidence.lower()} {{ color: {'#27ae60' if confidence == 'high' else '#e67e22' if confidence == 'medium' else '#e74c3c'}; font-weight: 700; }}
+  .confidence-high {{ color: #27ae60; font-weight: 700; }}
+  .confidence-medium {{ color: #e67e22; font-weight: 700; }}
+  .confidence-low {{ color: #e74c3c; font-weight: 700; }}
+  .confidence-\\2014  {{ color: #718096; font-weight: 700; }}
 
   .fix-box {{ background: #edfaf3; border: 1px solid #27ae60; border-radius: 8px;
                padding: 14px 16px; }}
@@ -209,13 +217,14 @@ def _build_html(result: dict) -> str:
     <div class="two-col">
       <div class="card">
         <div class="card-label">Key Indicators</div>
-        <div class="card-value">{_render_list(key_inds)}</div>
+        <div class="card-value">{_render_list(key_inds) if key_inds else ("<p style='color:#888;'>—</p>" if not triage_raw else "")}</div>
       </div>
       <div class="card">
         <div class="card-label">Actions Taken</div>
-        <div class="card-value">{_render_list(actions)}</div>
+        <div class="card-value">{_render_list(actions) if actions else ("<p style='color:#888;'>—</p>" if not triage_raw else "")}</div>
       </div>
     </div>
+    {"<div class='card'><div class='card-label'>Agent Output</div><div class='card-value'>" + _render_code(triage_raw) + "</div></div>" if triage_raw and not alert else ""}
   </div>
 
   <!-- SECTION 2: INVESTIGATION -->
@@ -242,6 +251,7 @@ def _build_html(result: dict) -> str:
     </div>
 
     {"<div class='card'><div class='card-label'>Stack Trace</div><div class='card-value'>" + _render_code(stack) + "</div></div>" if stack else ""}
+    {"<div class='card'><div class='card-label'>Agent Output</div><div class='card-value'>" + _render_code(invest_raw) + "</div></div>" if invest_raw and not hypothesis or hypothesis == "—" else ""}
   </div>
 
   <!-- SECTION 3: CODE ANALYSIS -->
@@ -259,11 +269,12 @@ def _build_html(result: dict) -> str:
     {"<div>" + affected_code_html + "</div>" if aff_code else ""}
 
     <div class="fix-box">
-      <div class="fix-label">&#x2705; Fix Suggestion</div>
+      <div class="fix-label">&#x25B6; Fix Suggestion</div>
       <div class="card-value">{fix}</div>
     </div>
 
     {"<div class='card' style='margin-top:10px;'><div class='card-label'>Alternative Solutions</div><div class='card-value'>" + _render_list(alt_sol) + "</div></div>" if alt_sol else ""}
+    {"<div class='card' style='margin-top:10px;'><div class='card-label'>Agent Output</div><div class='card-value'>" + _render_code(code_raw) + "</div></div>" if code_raw and root_cause == "—" else ""}
 
     <div class="card" style="margin-top:10px;">
       <div class="card-label">Recommended Next Steps</div>
