@@ -1,225 +1,565 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <title>Incident Response Agent — Architecture</title>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
-      min-height: 100vh;
-      padding: 32px;
-    }
-    header {
-      text-align: center;
-      margin-bottom: 36px;
-    }
-    header h1 {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      color: #fff;
-      margin-bottom: 8px;
-    }
-    header p {
-      color: #94a3b8;
-      font-size: 14px;
-    }
-    .diagram-wrapper {
-      background: #1a1f2e;
-      border: 1px solid #2d3748;
-      border-radius: 12px;
-      padding: 32px;
-      max-width: 1300px;
-      margin: 0 auto 40px;
-    }
-    .mermaid {
-      display: flex;
-      justify-content: center;
-    }
-    .legend {
-      max-width: 1300px;
-      margin: 0 auto;
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #1a1f2e;
-      border: 1px solid #2d3748;
-      border-radius: 8px;
-      padding: 8px 16px;
-      font-size: 13px;
-      color: #cbd5e0;
-    }
-    .dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-  </style>
+<meta charset="UTF-8"/>
+<title>Incident Response Agent — Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: #0d1117;
+    color: #e2e8f0;
+    padding: 40px 32px 60px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 26px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+    margin-bottom: 48px;
+  }
+
+  /* ── layout ── */
+  .diagram {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+
+  /* ── rows ── */
+  .row {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    position: relative;
+  }
+
+  /* ── lane labels ── */
+  .lane-label {
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #475569;
+    width: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+  }
+
+  /* ── boxes ── */
+  .box {
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+  }
+  .box .name {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .box .desc {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+  .box .port {
+    font-size: 10px;
+    font-family: monospace;
+    margin-top: 4px;
+    color: #64748b;
+  }
+
+  /* ── colors ── */
+  .blue   { background: #0f2744; border: 1.5px solid #2563eb; }
+  .purple { background: #1a1040; border: 1.5px solid #7c3aed; }
+  .cyan   { background: #0a2030; border: 1.5px solid #0891b2; }
+  .green  { background: #0a2018; border: 1.5px solid #16a34a; }
+  .orange { background: #1f1508; border: 1.5px solid #d97706; }
+  .red    { background: #200a0a; border: 1.5px solid #dc2626; }
+  .pink   { background: #200a1a; border: 1.5px solid #db2777; }
+  .slate  { background: #111827; border: 1.5px dashed #374151; }
+
+  .blue .name   { color: #93c5fd; }
+  .purple .name { color: #c4b5fd; }
+  .cyan .name   { color: #67e8f9; }
+  .green .name  { color: #86efac; }
+  .orange .name { color: #fcd34d; }
+  .red .name    { color: #fca5a5; }
+  .pink .name   { color: #f9a8d4; }
+  .slate .name  { color: #94a3b8; }
+
+  /* ── group box ── */
+  .group {
+    flex: 1;
+    border-radius: 12px;
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .group-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 2px;
+  }
+  .group-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .group-row .box { flex: 1; }
+
+  .g-blue   { background: #060e1a; border: 1px solid #1d4ed8; }
+  .g-purple { background: #09060f; border: 1px solid #5b21b6; }
+  .g-cyan   { background: #06131a; border: 1px solid #155e75; }
+  .g-green  { background: #06120c; border: 1px solid #14532d; }
+  .g-pink   { background: #120608; border: 1px solid #9d174d; }
+
+  .g-blue   .group-title { color: #3b82f6; }
+  .g-purple .group-title { color: #8b5cf6; }
+  .g-cyan   .group-title { color: #06b6d4; }
+  .g-green  .group-title { color: #22c55e; }
+  .g-pink   .group-title { color: #ec4899; }
+
+  /* ── arrows between rows ── */
+  .connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 6px 0;
+    position: relative;
+  }
+  .arrow-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    flex: 1;
+  }
+  .arrow-label {
+    font-size: 10px;
+    color: #475569;
+    white-space: nowrap;
+    margin-bottom: 2px;
+    font-style: italic;
+  }
+  .arrow-line {
+    width: 2px;
+    height: 28px;
+    background: linear-gradient(to bottom, #374151, #1f2937);
+    position: relative;
+  }
+  .arrow-line::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #374151;
+  }
+
+  /* ── pipeline agents ── */
+  .agents-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .agent-box {
+    flex: 1;
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .agent-num {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 3px;
+  }
+  .agent-name {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .agent-desc {
+    font-size: 10px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+  .agent-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+  .agent-arrow-line {
+    height: 2px;
+    width: 28px;
+    background: #374151;
+    position: relative;
+  }
+  .agent-arrow-line::after {
+    content: '';
+    position: absolute;
+    right: -7px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid #374151;
+  }
+  .agent-pass {
+    font-size: 9px;
+    color: #334155;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+
+  /* ── quick analysis side label ── */
+  .qa-note {
+    font-size: 10px;
+    color: #475569;
+    text-align: center;
+    font-style: italic;
+    margin-top: 6px;
+  }
+
+  /* ── ollama side panel ── */
+  .side-layout {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .side-layout .main-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .llm-panel {
+    width: 170px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+  }
+  .llm-box {
+    background: #200a1a;
+    border: 1.5px solid #db2777;
+    border-radius: 10px;
+    padding: 16px 14px;
+    text-align: center;
+    width: 100%;
+  }
+  .llm-box .name { color: #f9a8d4; font-size: 14px; font-weight: 700; }
+  .llm-box .desc { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+  .llm-box .port { font-size: 10px; font-family: monospace; color: #64748b; margin-top: 6px; }
+  .llm-calls {
+    font-size: 10px;
+    color: #475569;
+    text-align: center;
+    font-style: italic;
+    line-height: 1.5;
+  }
+  .dashed-line {
+    width: 2px;
+    height: 48px;
+    border-left: 2px dashed #374151;
+    margin: 0 auto;
+  }
+
+  /* ── spacing helpers ── */
+  .gap-sm { height: 8px; }
+  .gap-md { height: 16px; }
+
+  /* ── full-width connector ── */
+  .wide-connector {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+  }
+  .wide-connector .arrow-line { height: 24px; }
+
+  /* ── footer legend ── */
+  .legend {
+    max-width: 1100px;
+    margin: 40px auto 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+  .leg-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+</style>
 </head>
 <body>
-  <header>
-    <h1>Incident Response Agent — System Architecture</h1>
-    <p>Automated 3-agent LLM pipeline: Alert &rarr; Triage &rarr; Investigation &rarr; Code Analysis &rarr; PDF Report &rarr; Email</p>
-  </header>
 
-  <div class="diagram-wrapper">
-    <div class="mermaid">
-%%{init: {
-  "theme": "dark",
-  "themeVariables": {
-    "primaryColor": "#1e3a5f",
-    "primaryTextColor": "#e2e8f0",
-    "primaryBorderColor": "#3b82f6",
-    "lineColor": "#64748b",
-    "secondaryColor": "#1e3a2f",
-    "tertiaryColor": "#2d1f3d",
-    "background": "#1a1f2e",
-    "nodeBorder": "#4a5568",
-    "clusterBkg": "#161b27",
-    "titleColor": "#94a3b8",
-    "edgeLabelBackground": "#1a1f2e"
-  },
-  "flowchart": { "curve": "basis", "padding": 20 }
-}}%%
+<h1>Incident Response Agent</h1>
+<p class="subtitle">Automated alert &rarr; investigation &rarr; PDF report &rarr; email notification</p>
 
-flowchart TB
+<div class="diagram">
+<div class="side-layout">
+<div class="main-col">
 
-  %% ── MONITORED SERVICES ────────────────────────────────────────────────────
-  subgraph SVC["&#128230;  Monitored Services"]
-    direction LR
-    WA["<b>weather-app1</b><br/>FastAPI · Port 8000<br/>Generates weather forecasts"]
-    MAS["<b>mongo-api-service</b><br/>FastAPI · Port 9000<br/>REST API over MongoDB"]
-    MG[("<b>MongoDB</b><br/>Port 27017")]
-    MAS --> MG
-  end
-
-  %% ── MONITORING STACK ──────────────────────────────────────────────────────
-  subgraph MON["&#128269;  Monitoring Stack"]
-    direction LR
-    PROM["<b>Prometheus</b><br/>Port 9090<br/>Metrics + Alert Rules"]
-    AM["<b>Alertmanager</b><br/>Port 9093<br/>Routes alerts"]
-    GF["<b>Grafana</b><br/>Port 3000<br/>Dashboards"]
-    PROM -- "alert rules fired" --> AM
-    GF -. "query metrics" .-> PROM
-    GF -. "query logs" .-> LOKI
-  end
-
-  %% ── LOG PIPELINE ──────────────────────────────────────────────────────────
-  subgraph LOGS["&#128196;  Log Pipeline"]
-    direction LR
-    PT["<b>Promtail</b><br/>Tail &amp; ship logs"]
-    LOKI["<b>Loki</b><br/>Port 3100<br/>Log aggregation"]
-    PT -- "push logs" --> LOKI
-  end
-
-  %% ── INCIDENT PIPELINE ─────────────────────────────────────────────────────
-  subgraph INC["&#129302;  Incident Response Pipeline  ·  Port 9100"]
-    direction TB
-    IAW["<b>incident-agent-workflow</b><br/>FastAPI · Receives alert webhooks<br/>Queries Prometheus + Loki for context"]
-
-    subgraph QUICK["Fast Path"]
-      QA["<b>Quick Analysis</b><br/>Plain-chat LLM<br/>Instant baseline summary"]
-    end
-
-    subgraph PIPE["3-Agent Deep Pipeline"]
-      direction LR
-      T["<b>&#9312; Triage Agent</b><br/>Classifies severity<br/>Resolves service config<br/>Creates incident ticket"]
-      I["<b>&#9313; Investigation Agent</b><br/>Greps log files<br/>Health check<br/>Extracts stack trace"]
-      C["<b>&#9314; Code Analysis Agent</b><br/>Reads source at file:line<br/>Git log check<br/>Root cause + fix"]
-      T -- "resolved config<br/>+ log paths" --> I
-      I -- "stack trace<br/>+ hypothesis" --> C
-    end
-
-    PDF["<b>PDF Generator</b><br/>WeasyPrint HTML&#8594;PDF<br/>Full incident report"]
-
-    IAW --> QA
-    IAW --> T
-    C --> PDF
-  end
-
-  %% ── NOTIFICATION ──────────────────────────────────────────────────────────
-  subgraph NOTIF["&#128235;  Notification"]
-    NOT["<b>Notifier</b><br/>Port 8002<br/>Formats message + attaches PDF"]
-    EMAIL["<b>Gmail SMTP</b><br/>Sends to on-call engineer"]
-    NOT --> EMAIL
-  end
-
-  %% ── LLM HOST ──────────────────────────────────────────────────────────────
-  subgraph LLM["&#129504;  LLM  ·  Host Machine"]
-    OLL["<b>Ollama</b><br/>Port 11434<br/>qwen2.5:14b<br/>Tool-calling + JSON schema"]
-  end
-
-  %% ── CROSS-GROUP FLOWS ─────────────────────────────────────────────────────
-  WA  -- "Prometheus metrics<br/>/metrics endpoint" --> PROM
-  MAS -- "Prometheus metrics<br/>/metrics endpoint" --> PROM
-  WA  -- "app.log" --> PT
-  MAS -- "app.log" --> PT
-
-  AM  -- "POST /alerts<br/>webhook" --> IAW
-  IAW -- "query recent logs" --> LOKI
-  IAW -- "query metric snapshot" --> PROM
-
-  QA  -- "analysis text" --> NOT
-  PDF -- "PDF bytes (base64)" --> NOT
-
-  QA  -. "chat completions" .-> OLL
-  T   -. "tool-calling loop" .-> OLL
-  I   -. "tool-calling loop" .-> OLL
-  C   -. "tool-calling loop" .-> OLL
-
-  I   -. "read log files<br/>(volume mount)" .-> WA
-  I   -. "read log files<br/>(volume mount)" .-> MAS
-  C   -. "read source code<br/>(volume mount)" .-> WA
-  C   -. "read source code<br/>(volume mount)" .-> MAS
-
-  %% ── STYLES ────────────────────────────────────────────────────────────────
-  classDef service    fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0,rx:6
-  classDef monitor    fill:#2d1f4e,stroke:#8b5cf6,color:#e2e8f0,rx:6
-  classDef logpipe    fill:#1a2f3a,stroke:#06b6d4,color:#e2e8f0,rx:6
-  classDef agent      fill:#1e3a2f,stroke:#10b981,color:#e2e8f0,rx:6
-  classDef infra      fill:#3a2a1e,stroke:#f59e0b,color:#e2e8f0,rx:6
-  classDef notif      fill:#1f2e1e,stroke:#22c55e,color:#e2e8f0,rx:6
-  classDef llm        fill:#3a1e2a,stroke:#ec4899,color:#e2e8f0,rx:6
-  classDef db         fill:#2a1e1e,stroke:#ef4444,color:#e2e8f0
-
-  class WA,MAS service
-  class MG db
-  class PROM,AM,GF monitor
-  class PT,LOKI logpipe
-  class IAW,QA,T,I,C,PDF agent
-  class NOT,EMAIL notif
-  class OLL llm
+  <!-- ── ROW 1: SERVICES ──────────────────────────────────────────────── -->
+  <div class="row">
+    <div class="lane-label">Services</div>
+    <div class="group g-blue" style="flex-direction:row; align-items:stretch; gap:12px;">
+      <div class="group-title" style="writing-mode:horizontal-tb; transform:none; width:auto; margin-bottom:0; align-self:center; display:none;"></div>
+      <div class="box blue" style="flex:1;">
+        <div class="name">weather-app1</div>
+        <div class="desc">FastAPI service<br/>Generates weather forecasts<br/>Exposes /metrics endpoint</div>
+        <div class="port">:8000</div>
+      </div>
+      <div class="box blue" style="flex:1;">
+        <div class="name">mongo-api-service</div>
+        <div class="desc">FastAPI REST API<br/>Reads/writes weather data<br/>Backed by MongoDB</div>
+        <div class="port">:9000</div>
+      </div>
+      <div class="box red" style="flex:0.6;">
+        <div class="name">MongoDB</div>
+        <div class="desc">Persistent storage<br/>for weather records</div>
+        <div class="port">:27017</div>
+      </div>
     </div>
   </div>
 
-  <div class="legend">
-    <div class="legend-item"><div class="dot" style="background:#3b82f6;"></div>Monitored Services</div>
-    <div class="legend-item"><div class="dot" style="background:#8b5cf6;"></div>Monitoring Stack (Prometheus · Alertmanager · Grafana)</div>
-    <div class="legend-item"><div class="dot" style="background:#06b6d4;"></div>Log Pipeline (Promtail · Loki)</div>
-    <div class="legend-item"><div class="dot" style="background:#10b981;"></div>Incident Response Pipeline (3 Agents + PDF)</div>
-    <div class="legend-item"><div class="dot" style="background:#22c55e;"></div>Notification (Notifier · Gmail)</div>
-    <div class="legend-item"><div class="dot" style="background:#ec4899;"></div>LLM Host (Ollama · qwen2.5:14b)</div>
-    <div class="legend-item"><div class="dot" style="background:#64748b;"></div>Solid line = data flow &nbsp;·&nbsp; Dashed line = query / read</div>
+  <!-- connector -->
+  <div class="connector">
+    <div style="width:18px; flex-shrink:0;"></div>
+    <div class="arrow-col">
+      <div class="arrow-label">Prometheus metrics scrape</div>
+      <div class="arrow-line"></div>
+    </div>
+    <div class="arrow-col">
+      <div class="arrow-label">Logs shipped via Promtail</div>
+      <div class="arrow-line"></div>
+    </div>
+    <div style="flex:0.6;"></div>
   </div>
 
-  <script>
-    mermaid.initialize({
-      startOnLoad: true,
-      theme: 'dark',
-      securityLevel: 'loose',
-      flowchart: { useMaxWidth: true, htmlLabels: true }
-    });
-  </script>
+  <!-- ── ROW 2: MONITORING ─────────────────────────────────────────────── -->
+  <div class="row">
+    <div class="lane-label">Monitoring</div>
+    <div class="group g-purple" style="flex:1;">
+      <div class="group-title">&#128269; Metrics &amp; Alerting</div>
+      <div class="group-row">
+        <div class="box purple">
+          <div class="name">Prometheus</div>
+          <div class="desc">Scrapes /metrics every 15s<br/>Evaluates alert rules</div>
+          <div class="port">:9090</div>
+        </div>
+        <div class="box purple">
+          <div class="name">Alertmanager</div>
+          <div class="desc">Receives fired alerts<br/>Routes via webhook to pipeline</div>
+          <div class="port">:9093</div>
+        </div>
+        <div class="box purple">
+          <div class="name">Grafana</div>
+          <div class="desc">Dashboards &amp; visualization<br/>Queries Prometheus + Loki</div>
+          <div class="port">:3000</div>
+        </div>
+      </div>
+    </div>
+    <div class="group g-cyan" style="flex:0.75;">
+      <div class="group-title">&#128196; Log Aggregation</div>
+      <div class="group-row">
+        <div class="box cyan">
+          <div class="name">Promtail</div>
+          <div class="desc">Tails app log files<br/>Ships to Loki</div>
+        </div>
+        <div class="box cyan">
+          <div class="name">Loki</div>
+          <div class="desc">Log storage<br/>Queryable by Grafana<br/>&amp; pipeline</div>
+          <div class="port">:3100</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- connector -->
+  <div class="connector">
+    <div style="width:18px; flex-shrink:0;"></div>
+    <div class="arrow-col">
+      <div class="arrow-label">POST /alerts webhook</div>
+      <div class="arrow-line" style="background:linear-gradient(to bottom,#7c3aed,#1f2937);"></div>
+    </div>
+    <div class="arrow-col">
+      <div class="arrow-label">Pipeline queries Prometheus + Loki for context</div>
+      <div class="arrow-line"></div>
+    </div>
+    <div style="flex:0;"></div>
+  </div>
+
+  <!-- ── ROW 3: PIPELINE ───────────────────────────────────────────────── -->
+  <div class="row">
+    <div class="lane-label">Pipeline</div>
+    <div class="group g-green" style="flex:1;">
+      <div class="group-title">&#129302; Incident Response Pipeline &nbsp;&middot;&nbsp; :9100</div>
+
+      <!-- Entry point -->
+      <div class="box green" style="align-self:flex-start; padding:10px 16px;">
+        <div class="name">Alertmanager Webhook received</div>
+        <div class="desc">Queries Prometheus snapshot &amp; recent Loki logs &rarr; builds alert context</div>
+      </div>
+
+      <div class="gap-sm"></div>
+
+      <!-- Quick analysis note -->
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <div class="box slate" style="flex:0.4; border-style:dashed;">
+          <div class="name" style="font-size:12px;">Quick Analysis</div>
+          <div class="desc">Fast plain-chat LLM<br/>Instant summary<br/>sent in email immediately</div>
+        </div>
+        <div style="flex:1; padding-left:4px;">
+          <div style="font-size:10px; color:#475569; margin-bottom:8px; font-style:italic;">&#8595; Deep pipeline runs in parallel</div>
+
+          <!-- 3 agents -->
+          <div class="agents-row">
+            <div class="agent-box green">
+              <div class="agent-num" style="color:#4ade80;">Agent 1</div>
+              <div class="agent-name" style="color:#86efac;">Triage</div>
+              <div class="agent-desc">Classifies severity &amp; error type<br/>Resolves log paths &amp; repo<br/>Creates incident ticket</div>
+            </div>
+            <div class="agent-arrow">
+              <div class="agent-arrow-line"></div>
+              <div class="agent-pass">config + paths</div>
+            </div>
+            <div class="agent-box green">
+              <div class="agent-num" style="color:#4ade80;">Agent 2</div>
+              <div class="agent-name" style="color:#86efac;">Investigation</div>
+              <div class="agent-desc">Health check service<br/>Greps log files<br/>Extracts stack trace</div>
+            </div>
+            <div class="agent-arrow">
+              <div class="agent-arrow-line"></div>
+              <div class="agent-pass">stack trace</div>
+            </div>
+            <div class="agent-box green">
+              <div class="agent-num" style="color:#4ade80;">Agent 3</div>
+              <div class="agent-name" style="color:#86efac;">Code Analysis</div>
+              <div class="agent-desc">Reads source at file:line<br/>Checks git log<br/>Root cause + fix</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gap-sm"></div>
+
+      <!-- PDF generator -->
+      <div style="display:flex; justify-content:flex-end;">
+        <div class="box green" style="flex:0.6; padding:10px 16px;">
+          <div class="name">PDF Report Generator</div>
+          <div class="desc">WeasyPrint HTML &rarr; PDF<br/>All 3 agent outputs + evidence</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- connector -->
+  <div class="connector">
+    <div style="width:18px; flex-shrink:0;"></div>
+    <div class="arrow-col">
+      <div class="arrow-label">Quick analysis text + PDF attachment</div>
+      <div class="arrow-line" style="background:linear-gradient(to bottom,#16a34a,#1f2937);"></div>
+    </div>
+    <div style="flex:0;"></div>
+  </div>
+
+  <!-- ── ROW 4: NOTIFICATION ───────────────────────────────────────────── -->
+  <div class="row">
+    <div class="lane-label">Notify</div>
+    <div class="group g-green" style="flex-direction:row; gap:12px; align-items:stretch;">
+      <div class="box green" style="flex:1;">
+        <div class="name">Notifier Service</div>
+        <div class="desc">Receives analysis + PDF<br/>Formats the email message</div>
+        <div class="port">:8002</div>
+      </div>
+      <div style="display:flex; align-items:center; padding: 0 4px;">
+        <div class="agent-arrow-line"></div>
+      </div>
+      <div class="box green" style="flex:1;">
+        <div class="name">Gmail SMTP</div>
+        <div class="desc">Email to on-call engineer<br/>Quick analysis in body<br/>PDF attached</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end main-col -->
+
+<!-- ── LLM SIDE PANEL ─────────────────────────────────────────────────── -->
+<div class="llm-panel">
+  <div class="llm-box">
+    <div class="name">Ollama</div>
+    <div style="font-size:11px; color:#f9a8d4; font-weight:600; margin-top:2px;">qwen2.5:14b</div>
+    <div class="desc">Local LLM on host machine<br/>OpenAI-compatible API<br/>Tool-calling + JSON</div>
+    <div class="port">host:11434</div>
+  </div>
+  <div class="dashed-line"></div>
+  <div class="llm-calls">All 4 agents call<br/>Ollama via loop<br/>(tool-calling)</div>
+  <div class="dashed-line"></div>
+  <div class="llm-calls" style="font-size:9px; color:#334155;">Self-corrects when<br/>LLM returns bad JSON</div>
+</div>
+
+</div><!-- end side-layout -->
+</div><!-- end diagram -->
+
+<div class="legend">
+  <div class="legend-item"><div class="leg-dot" style="background:#2563eb;"></div>Monitored Services</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#7c3aed;"></div>Metrics &amp; Alerting</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#0891b2;"></div>Log Aggregation</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#16a34a;"></div>Incident Response Pipeline</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#db2777;"></div>Ollama LLM (Host)</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#374151;"></div>Solid = data flow &nbsp;·&nbsp; Dashed = read / query</div>
+</div>
+
 </body>
 </html>
