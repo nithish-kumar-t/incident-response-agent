@@ -17,6 +17,8 @@ class NotifyPayload(BaseModel):
     alertname: str
     summary: str
     analysis: str
+    pdf_base64: str | None = None
+    pdf_filename: str | None = None
 
 
 @app.get("/")
@@ -32,9 +34,12 @@ def notify(payload: NotifyPayload):
             alertname=payload.alertname,
             summary=payload.summary,
             analysis=payload.analysis,
+            pdf_base64=payload.pdf_base64,
+            pdf_filename=payload.pdf_filename,
         )
-        log.info("Email sent for alert=%s service=%s", payload.alertname, payload.service)
-        return {"status": "sent"}
+        has_pdf = payload.pdf_base64 is not None
+        log.info("Email sent for alert=%s service=%s pdf=%s", payload.alertname, payload.service, has_pdf)
+        return {"status": "sent", "pdf_attached": has_pdf}
     except Exception as e:
         log.error("Failed to send email: %s", str(e))
         return {"status": "failed", "error": str(e)}

@@ -1,0 +1,9 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+httpx
+openai>=1.0.0
+pydantic==2.8.2
+pydantic-settings==2.4.0
+prometheus-fastapi-instrumentator
+python-dotenv==1.0.1
+weasyprint

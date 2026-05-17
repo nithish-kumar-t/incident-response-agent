@@ -105,6 +105,13 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./apps/incident-agent-workflow/logs:/app/logs
+      # Log files — Investigation Agent reads these directly
+      - ./apps/weather-app1/logs:/var/log/weather-app1:ro
+      - ./apps/mongo-api-service/logs:/var/log/mongo-api-service:ro
+      # Source repos — Code Analysis Agent reads these for stack trace locations
+      - ./apps/weather-app1:/repos/weather-app1:ro
+      - ./apps/mongo-api-service:/repos/mongo-api-service:ro
+      - ./apps/incident-agent-workflow:/repos/incident-agent-workflow:ro
 
   loki:
     image: grafana/loki:latest

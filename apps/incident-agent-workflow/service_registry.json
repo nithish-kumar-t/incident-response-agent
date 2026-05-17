@@ -1,0 +1,30 @@
+{
+  "_comment": "Maps service names (from Prometheus alert labels) to their log paths and repo paths inside the Docker container.",
+
+  "weather-app1": {
+    "health_url": "http://weather-app1:8000/",
+    "log_paths": {
+      "service": "/var/log/weather-app1/app.log"
+    },
+    "repo_path": "/repos/weather-app1",
+    "language": "python"
+  },
+
+  "mongo-api-service": {
+    "health_url": "http://mongo-api-service:9000/health",
+    "log_paths": {
+      "service": "/var/log/mongo-api-service/service.log"
+    },
+    "repo_path": "/repos/mongo-api-service",
+    "language": "python"
+  },
+
+  "incident-agent-workflow": {
+    "health_url": "http://incident-agent-workflow:9100/health",
+    "log_paths": {
+      "service": "/app/logs/workflow.log"
+    },
+    "repo_path": "/repos/incident-agent-workflow",
+    "language": "python"
+  }
+}
