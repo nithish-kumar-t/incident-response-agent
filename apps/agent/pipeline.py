@@ -18,6 +18,15 @@ async def run_pipeline(error_payload: dict) -> dict:
     logger.info("[Pipeline %s] Agent 1 done — type=%s severity=%s", pipeline_id,
                 a1.get("error_type"), a1.get("severity"))
 
+    # Guarantee resolved_config always carries repo_path + log_paths even when
+    # the service is not in the registry (agent1 LLM may omit it in that case).
+    rc = a1.get("resolved_config") or {}
+    if not rc.get("repo_path"):
+        rc["repo_path"] = error_payload.get("repo_path", "")
+    if not rc.get("log_paths"):
+        rc["log_paths"] = error_payload.get("log_paths", {})
+    a1["resolved_config"] = rc
+
     # ── Agent 2: investigation (branches on error_type) ───────────────────────
     logger.info("[Pipeline %s] Agent 2 (Investigation/%s) running…",
                 pipeline_id, a1.get("error_type", "?"))

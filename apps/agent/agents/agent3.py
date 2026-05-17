@@ -244,16 +244,38 @@ async def _executor(fn_name: str, fn_args: dict):
 
 
 async def run(agent1_result: dict, agent2_result: dict) -> dict:
-    # Surface the repo_path prominently so the LLM doesn't miss it
     repo_path = (agent1_result.get("resolved_config") or {}).get("repo_path", "unknown")
     stack_trace = agent2_result.get("stack_trace", "")
+    suggested = agent2_result.get("suggested_files_to_check", [])
+
+    if stack_trace:
+        how_to_start = (
+            f"Stack trace is available. Follow STEP 1-4 from your instructions:\n"
+            f"1. Call parse_stack_trace on the stack trace below.\n"
+            f"2. Read each implicated file:line with read_file_lines (±20 lines).\n"
+            f"3. Trace deeper with grep_codebase if the call site is not the root cause.\n"
+            f"4. Call get_git_log on the most implicated file.\n"
+            f"repo_path for ALL tool calls: {repo_path}"
+        )
+    else:
+        suggested_str = ", ".join(suggested) if suggested else "(none provided)"
+        how_to_start = (
+            f"No stack trace is available. Do NOT give up — read the code directly:\n"
+            f"1. Call list_repo_files to discover the structure at {repo_path}.\n"
+            f"2. For each file in suggested_files_to_check ({suggested_str}), call "
+            f"read_file_lines (lines 1-100 to start, then narrow down).\n"
+            f"3. Call grep_codebase on the error keyword to find the exact location.\n"
+            f"4. Call get_git_log to check for recent regressions.\n"
+            f"repo_path for ALL tool calls: {repo_path}\n\n"
+            f"You MUST call at least one of list_repo_files, read_file_lines, or grep_codebase "
+            f"before producing your final JSON — do not return undetermined without reading code."
+        )
 
     user_msg = (
         f"Agent 1 triage (repo_path = '{repo_path}'):\n{json.dumps(agent1_result, indent=2)}\n\n"
         f"Agent 2 investigation:\n{json.dumps(agent2_result, indent=2)}\n\n"
-        f"Stack trace extracted from logs:\n{stack_trace or '(none — use suggested_files_to_check)'}\n\n"
-        "Parse the stack trace first, then read the exact file:line ranges in the repo "
-        f"at {repo_path} to pinpoint the root cause."
+        f"Stack trace:\n{stack_trace or '(none)'}\n\n"
+        f"{how_to_start}"
     )
     raw = await run_agent(_SYSTEM, user_msg, _TOOLS, _executor)
     return extract_json(raw)
