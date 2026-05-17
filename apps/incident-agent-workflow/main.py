@@ -5,6 +5,8 @@ import httpx
 from fastapi import FastAPI, Request
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from agents.log_analyzer_agent import LogAnalyzerAgent
+
 LOG_DIR = Path("/app/logs")
 LOG_DIR.mkdir(exist_ok=True)
 
@@ -23,6 +25,8 @@ Instrumentator().instrument(app).expose(app)
 
 PROMETHEUS_URL = "http://prometheus:9090"
 LOKI_URL = "http://loki:3100"
+
+log_analyzer = LogAnalyzerAgent()
 
 
 @app.get("/health")
@@ -46,22 +50,25 @@ async def receive_alerts(request: Request):
             prometheus_snapshot = await query_prometheus(client, service)
             recent_logs = await query_loki(client, service)
 
+            context = {
+                "alertname": alert_name,
+                "service": service,
+                "summary": annotations.get("summary", ""),
+                "prometheus_snapshot": prometheus_snapshot,
+                "recent_logs": recent_logs,
+            }
 
-#LLM CALL
-            analysis = await analyze_with_ollama(service, alert_name, annotations.get("summary", ""), prometheus_snapshot, recent_logs)
-            log.warning("ollama_analysis service=%s alert=%s analysis=%s", service, alert_name, analysis)
-
-
-
+            analysis = log_analyzer.run(context)
 
             log.warning(
+                "ollama_analysis service=%s alert=%s analysis=%s",
+                service, alert_name, analysis,
+            )
+            log.warning(
                 "agent_workflow_triggered status=%s alert=%s service=%s summary=%s prometheus=%s recent_logs=%s",
-                status,
-                alert_name,
-                service,
+                status, alert_name, service,
                 annotations.get("summary", ""),
-                prometheus_snapshot,
-                recent_logs,
+                prometheus_snapshot, recent_logs,
             )
 
     return {"status": "accepted", "alerts_received": len(alerts)}
@@ -114,39 +121,3 @@ async def query_loki(client: httpx.AsyncClient, service: str):
         ][:5]
     except Exception as exc:
         return [f"query_failed: {exc}"]
-
-
-
-
-#### LLM METHOD
-
-async def analyze_with_ollama(service: str, alert_name: str, summary: str, prometheus_snapshot: dict, recent_logs: list) -> str:
-    prompt = f"""You are an incident response agent analyzing a production alert.
-
-Alert: {alert_name}
-Service: {service}
-Summary: {summary}
-
-Prometheus metrics:
-{prometheus_snapshot}
-
-Recent logs:
-{chr(10).join(recent_logs)}
-
-Analyze and answer:
-1. What went wrong?
-2. What is the likely root cause?
-3. What should the on-call engineer check first?
-
-Be concise and specific."""
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "http://host.docker.internal:11434/api/generate",
-                json={"model": "mistral-nemo", "prompt": prompt, "stream": False}
-            )
-            response.raise_for_status()
-            return response.json()["response"]
-    except Exception as exc:
-        return f"Ollama analysis failed: {exc}"
