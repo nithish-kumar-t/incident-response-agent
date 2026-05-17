@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app/ app/
+COPY apps/mongo-api-service/app/ app/
 
 # The /app/logs directory is a mount point — create it so the container
 # starts cleanly even if Docker hasn't mounted the volume yet.

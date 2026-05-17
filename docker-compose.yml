@@ -1,8 +1,8 @@
 services:
   weather-app1:
     build:
-      context: ./apps/weather-app1
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/weather-app1/Dockerfile
     container_name: weather-app1
     restart: unless-stopped
     ports:
@@ -27,8 +27,8 @@ services:
 
   mongo-api-service:
     build:
-      context: ./apps/mongo-api-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/mongo-api-service/Dockerfile
     container_name: mongo-api-service
     restart: unless-stopped
     ports:
@@ -84,8 +84,8 @@ services:
 
   incident-agent-workflow:
     build:
-      context: ./apps/incident-agent-workflow
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/incident-agent-workflow/Dockerfile
     container_name: incident-agent-workflow
     restart: unless-stopped
     ports:
