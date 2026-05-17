@@ -1,7 +1,0 @@
-fastapi
-motor
-prometheus-fastapi-instrumentator
-pydantic
-pydantic-settings
-pymongo
-uvicorn
