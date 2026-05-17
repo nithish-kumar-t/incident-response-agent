@@ -517,18 +517,38 @@
   <!-- ── ROW 4: NOTIFICATION ───────────────────────────────────────────── -->
   <div class="row">
     <div class="lane-label">Notify</div>
-    <div class="group g-green" style="flex-direction:row; gap:12px; align-items:stretch;">
-      <div class="box green" style="flex:1;">
-        <div class="name">Notifier Service</div>
-        <div class="desc">Receives analysis + PDF<br/>Formats the email message</div>
-        <div class="port">:8002</div>
+    <div class="group g-green" style="gap:10px;">
+      <div style="display:flex; gap:12px; align-items:stretch;">
+        <div class="box green" style="flex:1;">
+          <div class="name">Notifier Service</div>
+          <div class="desc">Receives analysis + PDF<br/>Formats the email message</div>
+          <div class="port">:8002</div>
+        </div>
+        <div style="display:flex; align-items:center; padding: 0 4px;">
+          <div class="agent-arrow-line"></div>
+        </div>
+        <div class="box green" style="flex:1;">
+          <div class="name">&#128235; Gmail SMTP</div>
+          <div class="desc">Email to on-call engineer<br/>Quick analysis in body<br/>PDF attached</div>
+        </div>
+        <div style="display:flex; align-items:center; padding: 0 4px;">
+          <div class="agent-arrow-line"></div>
+        </div>
+        <div class="box" style="flex:1.2; background:#0d1f35; border:1.5px dashed #3b82f6;">
+          <div class="name" style="color:#93c5fd;">&#128295; GitHub Draft PR</div>
+          <div class="desc" style="color:#94a3b8;">
+            Auto-created branch<br/>
+            <code style="font-size:10px; color:#60a5fa;">fix/incident-{id}-{service}</code><br/>
+            PR body = root cause + fix suggestion + affected file:line + next steps
+          </div>
+          <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">
+            <span style="font-size:9px; background:#1e3a5f; border:1px solid #2563eb; color:#93c5fd; padding:2px 7px; border-radius:10px;">draft</span>
+            <span style="font-size:9px; background:#1a1f2e; border:1px solid #374151; color:#64748b; padding:2px 7px; border-radius:10px;">needs GITHUB_TOKEN</span>
+          </div>
+        </div>
       </div>
-      <div style="display:flex; align-items:center; padding: 0 4px;">
-        <div class="agent-arrow-line"></div>
-      </div>
-      <div class="box green" style="flex:1;">
-        <div class="name">Gmail SMTP</div>
-        <div class="desc">Email to on-call engineer<br/>Quick analysis in body<br/>PDF attached</div>
+      <div style="font-size:10px; color:#374151; padding: 0 2px; font-style:italic;">
+        &#8594; Engineer opens the PR, reviews the suggested fix, and merges or edits before deploying
       </div>
     </div>
   </div>
@@ -558,7 +578,8 @@
   <div class="legend-item"><div class="leg-dot" style="background:#0891b2;"></div>Log Aggregation</div>
   <div class="legend-item"><div class="leg-dot" style="background:#16a34a;"></div>Incident Response Pipeline</div>
   <div class="legend-item"><div class="leg-dot" style="background:#db2777;"></div>Ollama LLM (Host)</div>
-  <div class="legend-item"><div class="leg-dot" style="background:#374151;"></div>Solid = data flow &nbsp;·&nbsp; Dashed = read / query</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#2563eb; border: 1px dashed #60a5fa;"></div>GitHub Draft PR (auto-generated)</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#374151;"></div>Solid = data flow &nbsp;·&nbsp; Dashed = read / query / planned</div>
 </div>
 
 </body>
