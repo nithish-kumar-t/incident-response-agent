@@ -46,6 +46,7 @@ DEFAULT_TAIL    = 500         # log lines to read per scan
 CONTEXT_WINDOW  = 8           # lines before/after a flagged line
 HEALTH_TIMEOUT  = 5.0         # seconds for service health-check requests
 PIPELINE_CONCURRENCY = 2      # max simultaneous pipeline calls
+DEFAULT_MAX_EVENTS_PER_SCAN = 3
 
 REPORTS_DIR = Path(__file__).parent / "reports"
 
@@ -54,13 +55,13 @@ LOG_SOURCES: list[dict[str, str]] = [
         "service_name": "mongo-api-service",
         "log_path": str(Path(__file__).parent / "mongo-api-service" / "logs" / "service.log"),
         "repo_path": str(Path(__file__).parent / "mongo-api-service"),
-        "health_url": "http://localhost:8001/health",
+        "health_url": "http://localhost:9000/health/ready",
     },
     {
         "service_name": "weather-app1",
         "log_path": str(Path(__file__).parent / "weather-app1" / "logs" / "app.log"),
         "repo_path": str(Path(__file__).parent / "weather-app1"),
-        "health_url": "http://localhost:8002/health",
+        "health_url": "http://localhost:8000/",
     },
 ]
 
@@ -184,6 +185,7 @@ async def trigger_pipeline(
 async def run_scan(
     seen_fingerprints: set[str],
     tail: int,
+    max_events: int,
 ) -> dict[str, Any]:
     scan: dict[str, Any] = {
         "scan_time": datetime.now(timezone.utc).isoformat(),
@@ -192,6 +194,7 @@ async def run_scan(
     }
 
     sem = asyncio.Semaphore(PIPELINE_CONCURRENCY)
+    remaining_events = max_events
 
     async with httpx.AsyncClient() as client:
         health_results = await asyncio.gather(
@@ -216,7 +219,7 @@ async def run_scan(
 
         # Synthesise a fake "API down" error entry when health check fails
         api_down_fp = f"{svc_name}|api_down"
-        if health["reachable"] is False and api_down_fp not in seen_fingerprints:
+        if health["reachable"] is False and api_down_fp not in seen_fingerprints and remaining_events > 0:
             seen_fingerprints.add(api_down_fp)
             api_err: dict[str, Any] = {
                 "line_number": 0,
@@ -230,6 +233,7 @@ async def run_scan(
                 result = await trigger_pipeline(source, api_err, health)
             svc["pipeline_results"].append({"error": api_err, "pipeline_response": result})
             scan["new_events"] += 1
+            remaining_events -= 1
         elif health["reachable"] is True:
             # Clear the api_down fingerprint so we re-alert if it goes down again
             seen_fingerprints.discard(api_down_fp)
@@ -243,17 +247,27 @@ async def run_scan(
         svc["errors"].extend(errors)
         log.info("[scan] %s — %d error(s) in %d lines", svc_name, len(errors), len(lines))
 
-        async def process_error(err: dict[str, Any], src=source, h=health, s=svc) -> None:
+        async def process_error(err: dict[str, Any], src=source, h=health, s=svc) -> bool:
             fp = error_fingerprint(src["service_name"], err)
             if fp in seen_fingerprints:
-                return
+                return False
             seen_fingerprints.add(fp)
             async with sem:
                 result = await trigger_pipeline(src, err, h)
             s["pipeline_results"].append({"error": err, "pipeline_response": result})
             scan["new_events"] += 1
+            return True
 
-        await asyncio.gather(*[process_error(e) for e in errors])
+        for err in errors:
+            if remaining_events <= 0:
+                log.warning(
+                    "[scan] Reached max events per scan (%d); remaining errors will be handled next cycle",
+                    max_events,
+                )
+                break
+            processed = await process_error(err)
+            if processed:
+                remaining_events -= 1
         scan["services"].append(svc)
 
     return scan
@@ -266,6 +280,8 @@ async def service_loop(
     tail: int,
     reports_dir: Path,
     no_report: bool,
+    max_events: int,
+    stop_event: asyncio.Event,
 ) -> None:
     seen_fingerprints: set[str] = set()
     reports_dir.mkdir(parents=True, exist_ok=True)
@@ -276,14 +292,15 @@ async def service_loop(
     log.info(" Tail lines    : %d", tail)
     log.info(" Reports dir   : %s", reports_dir)
     log.info(" Pipeline      : direct (no HTTP)")
+    log.info(" Max events    : %d per scan", max_events)
     log.info("=" * 60)
 
     cycle = 0
-    while True:
+    while not stop_event.is_set():
         cycle += 1
         log.info("── Scan cycle #%d ──────────────────────────────────────", cycle)
 
-        scan = await run_scan(seen_fingerprints, tail)
+        scan = await run_scan(seen_fingerprints, tail, max_events)
 
         if not no_report and scan["new_events"] > 0:
             try:
@@ -300,22 +317,27 @@ async def service_loop(
         elif scan["new_events"] == 0:
             log.info("[scan] No new events — next scan in %ds", interval)
 
-        await asyncio.sleep(interval)
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
+    log.info("Monitor Service stopped")
 
 
 # ── Signal handling ────────────────────────────────────────────────────────────
 
-def _install_signals(loop: asyncio.AbstractEventLoop) -> None:
+def _install_signals(loop: asyncio.AbstractEventLoop, stop_event: asyncio.Event) -> None:
     def _stop() -> None:
-        log.info("Shutdown signal received — stopping service.")
-        loop.stop()
+        log.info("Shutdown signal received — finishing current scan before stopping.")
+        stop_event.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(sig, _stop)
         except NotImplementedError:
             # Windows doesn't support add_signal_handler for SIGTERM
-            signal.signal(sig, lambda *_: loop.stop())
+            signal.signal(sig, lambda *_: stop_event.set())
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -330,6 +352,8 @@ def parse_args() -> argparse.Namespace:
                    help="Directory for .docx reports (default: %(default)s)")
     p.add_argument("--no-report",  action="store_true",
                    help="Skip Word document generation")
+    p.add_argument("--max-events", type=int, default=DEFAULT_MAX_EVENTS_PER_SCAN,
+                   help="Maximum new events to send to the agent per scan (default: %(default)s)")
     return p.parse_args()
 
 
@@ -337,7 +361,8 @@ if __name__ == "__main__":
     args   = parse_args()
     loop   = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    _install_signals(loop)
+    stop_event = asyncio.Event()
+    _install_signals(loop, stop_event)
 
     try:
         loop.run_until_complete(
@@ -346,6 +371,8 @@ if __name__ == "__main__":
                 tail        = args.tail,
                 reports_dir = Path(args.output_dir),
                 no_report   = args.no_report,
+                max_events  = args.max_events,
+                stop_event  = stop_event,
             )
         )
     finally:
