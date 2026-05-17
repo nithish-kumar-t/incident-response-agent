@@ -82,16 +82,16 @@ services:
     depends_on:
       - incident-agent-workflow
 
-  notifier:
-    build:
-      context: .
-      dockerfile: apps/notifier/Dockerfile
-    container_name: notifier
-    restart: unless-stopped
-    ports:
-      - "8002:8002"
-    env_file:
-      - ./apps/notifier/.env
+  # notifier:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/notifier/Dockerfile
+  #   container_name: notifier
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8002:8002"
+  #   env_file:
+  #     - ./apps/notifier/.env
 
   incident-agent-workflow:
     build:
