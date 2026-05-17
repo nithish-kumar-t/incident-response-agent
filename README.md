@@ -1,114 +1,191 @@
-# Incident Response Agent Local Services
+# Incident Response Agent
 
-This repo is organized for multiple local services plus one shared monitoring stack.
+An AI-powered incident response system. When Prometheus detects an issue, Alertmanager triggers the agent workflow which collects metrics and logs, then uses a local LLM (Ollama) to analyze the incident and produce an actionable report.
+
+---
+
+## Project Structure
 
 ```text
-docker-compose.yml
+docker-compose.yml                        ← runs all services together
 apps/
-  weather-app1/
-    Dockerfile
-    main.py
-  mongo-api-service/
-    Dockerfile
-    app/
-  incident-agent-workflow/
-    Dockerfile
-    main.py
+  weather-app1/                           ← FastAPI weather service (port 8000)
+  mongo-api-service/                      ← FastAPI + MongoDB CRUD service (port 9000)
+  incident-agent-workflow/                ← AI agent, receives alerts + calls Ollama (port 9100)
+  agent/                                  ← standalone agent (host-only, port 8001)
 monitoring/
-  alert-rules.yml
-  alertmanager.yml
-  grafana/provisioning/datasources/datasources.yml
-  loki-config.yml
-  prometheus.yml
-  promtail-config.yml
-  targets.yml
-  targets.docker.yml
-  README.md
-requirements.txt
+  prometheus.yml                          ← scrape config + alertmanager config
+  alert-rules.yml                         ← alert conditions (ServiceDown, 5xx errors, etc.)
+  alertmanager.yml                        ← routes alerts to incident-agent-workflow
+  loki-config.yml                         ← log storage config
+  promtail-config.yml                     ← ships service logs to Loki
+  targets.docker.yml                      ← Prometheus scrape targets (Docker stack)
+  grafana/provisioning/                   ← auto-configures Grafana datasources
 ```
 
-Put each new service under `apps/`:
+---
 
-```text
-apps/service-app2/
-apps/service-app3/
-apps/service-app4/
+## How It Works
+
+```
+Service has an issue
+       ↓
+Prometheus detects metric threshold breach (every 5s scrape)
+       ↓
+Alertmanager fires → POST /alerts to incident-agent-workflow
+       ↓
+Agent queries Prometheus (metrics) + Loki (logs) for context
+       ↓
+Sends context to Ollama (local LLM, mistral-nemo)
+       ↓
+Ollama returns analysis: what went wrong, root cause, what to check
+       ↓
+Analysis written to apps/incident-agent-workflow/logs/workflow.log
 ```
 
-Each service should expose `/metrics` if you want Prometheus and Grafana to monitor it.
+---
 
-Run everything together:
+## Prerequisites
+
+- Docker + Docker Compose
+- [Ollama](https://ollama.com/download) installed and running on your host
+- `mistral-nemo` model pulled:
+
+```bash
+ollama pull mistral-nemo
+```
+
+---
+
+## Setup
+
+**1. Create the mongo-api-service environment file:**
+
+```bash
+# apps/mongo-api-service/.env
+MONGO_URI=mongodb://mongo:27017
+MONGO_DB=servicedb
+APP_NAME=Mongo API Service
+LOG_FILE=/app/logs/service.log
+```
+
+**2. Make sure Ollama is running on your host** (it starts automatically on Windows after install, or run `ollama serve`).
+
+---
+
+## Running Everything
+
+From the project root:
 
 ```bash
 docker compose up --build
 ```
 
-This starts:
+All services start together:
 
-```text
-weather-app1       http://127.0.0.1:8000
-mongo-api-service  http://127.0.0.1:9000
-prometheus         http://127.0.0.1:9090
-alertmanager       http://127.0.0.1:9093
-grafana            http://127.0.0.1:3000
-loki               http://127.0.0.1:3100
-agent workflow     http://127.0.0.1:9100
-mongodb            localhost:27017
+| Service | URL |
+|---|---|
+| weather-app1 | http://localhost:8000 |
+| mongo-api-service | http://localhost:9000 |
+| incident-agent-workflow | http://localhost:9100 |
+| Prometheus | http://localhost:9090 |
+| Alertmanager | http://localhost:9093 |
+| Grafana | http://localhost:3000 |
+| Loki | http://localhost:3100 |
+
+Grafana login: `admin` / `admin`
+
+---
+
+## Verifying It Works
+
+**Check Prometheus targets are UP:**
+```
+http://localhost:9090/targets
 ```
 
-Prometheus uses `monitoring/targets.docker.yml` in the full Docker stack.
-Use `monitoring/targets.yml` only when you run services directly on your host.
+**Manually fire a test alert:**
+```bash
+# Git Bash / Linux / Mac
+curl -X POST http://localhost:9100/alerts \
+  -H "Content-Type: application/json" \
+  -d '{"alerts":[{"status":"firing","labels":{"alertname":"ServiceDown","service":"weather-app1"},"annotations":{"summary":"weather-app1 is not responding"}}]}'
 
-Grafana is provisioned with two data sources:
-
-```text
-Prometheus  http://prometheus:9090
-Loki        http://loki:3100
+# PowerShell
+Invoke-WebRequest -Method POST http://localhost:9100/alerts \
+  -ContentType "application/json" \
+  -Body '{"alerts":[{"status":"firing","labels":{"alertname":"ServiceDown","service":"weather-app1"},"annotations":{"summary":"weather-app1 is not responding"}}]}'
 ```
 
-To view logs in Grafana:
-
-```text
-Explore -> select Loki -> run a LogQL query
+**Watch the agent analyze the alert:**
+```bash
+docker logs incident-agent-workflow --follow
 ```
 
-Useful LogQL:
+Or open the log file directly:
+```
+apps/incident-agent-workflow/logs/workflow.log
+```
+
+Look for lines starting with `ollama_analysis` — this is the LLM output.
+
+---
+
+## Active Alert Rules
+
+| Alert | Condition | Severity |
+|---|---|---|
+| `ServiceDown` | Service unreachable for 30s | critical |
+| `MongoDependencyDown` | MongoDB ping fails for 30s | critical |
+| `Service5xxErrors` | Non-zero 5xx rate for 2 minutes | warning |
+
+---
+
+## Grafana — Viewing Logs
+
+1. Go to `http://localhost:3000` → Explore → select **Loki**
+2. Run LogQL queries:
 
 ```logql
 {service="weather-app1"}
 {service="mongo-api-service"}
+{service="incident-agent-workflow"}
 {service="weather-app1"} |= "ERROR"
-{service="mongo-api-service"} |= "ERROR"
 ```
 
-Grafana login:
+---
 
-```text
-admin / admin
+## Adding a New Service
+
+1. Create your service under `apps/your-service/` with a `/metrics` endpoint
+2. Add a `Dockerfile`
+3. Add it to `docker-compose.yml`
+4. Add it to `monitoring/targets.docker.yml`:
+
+```yaml
+- targets:
+    - your-service:PORT
+  labels:
+    service: your-service
+    env: local-docker
 ```
 
-Alerting flow:
+5. Add its log path to `monitoring/promtail-config.yml` so logs ship to Loki
 
-```text
-Prometheus alert rule
-  -> Alertmanager
-  -> incident-agent-workflow /alerts webhook
-  -> queries Prometheus and Loki for context
-  -> writes workflow logs to apps/incident-agent-workflow/logs/workflow.log
-```
+---
 
-Current alerts:
+## Useful Queries
 
-```text
-ServiceDown
-MongoDependencyDown
-Service5xxErrors
-```
-
-The Mongo API exports this dependency metric:
-
+**PromQL (Prometheus):**
 ```promql
+up
+sum by (service) (rate(http_requests_total[1m]))
+histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[5m])))
 dependency_up{service="mongo-api-service", dependency="mongodb"}
 ```
 
-Your real agentic workflow can replace [apps/incident-agent-workflow/main.py](apps/incident-agent-workflow/main.py).
+**LogQL (Loki/Grafana):**
+```logql
+{service="mongo-api-service"} |= "ERROR"
+{service="incident-agent-workflow"} |= "ollama_analysis"
+```
