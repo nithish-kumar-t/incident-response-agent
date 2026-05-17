@@ -6,6 +6,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY apps/incident-agent-workflow/main.py .
+COPY apps/incident-agent-workflow/agents/ ./agents/
+COPY apps/incident-agent-workflow/llm/ ./llm/
 
 RUN mkdir -p /app/logs
 

@@ -5,6 +5,8 @@ import httpx
 from fastapi import FastAPI, Request
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from agents.log_analyzer_agent import LogAnalyzerAgent
+
 LOG_DIR = Path("/app/logs")
 LOG_DIR.mkdir(exist_ok=True)
 
@@ -23,6 +25,9 @@ Instrumentator().instrument(app).expose(app)
 
 PROMETHEUS_URL = "http://prometheus:9090"
 LOKI_URL = "http://loki:3100"
+NOTIFIER_URL = "http://notifier:8002/notify"
+
+log_analyzer = LogAnalyzerAgent()
 
 
 @app.get("/health")
@@ -46,15 +51,41 @@ async def receive_alerts(request: Request):
             prometheus_snapshot = await query_prometheus(client, service)
             recent_logs = await query_loki(client, service)
 
+            context = {
+                "alertname": alert_name,
+                "service": service,
+                "summary": annotations.get("summary", ""),
+                "prometheus_snapshot": prometheus_snapshot,
+                "recent_logs": recent_logs,
+            }
+
+            analysis = log_analyzer.run(context)
+
+            log.warning(
+                "ollama_analysis service=%s alert=%s analysis=%s",
+                service, alert_name, analysis,
+            )
             log.warning(
                 "agent_workflow_triggered status=%s alert=%s service=%s summary=%s prometheus=%s recent_logs=%s",
-                status,
-                alert_name,
-                service,
+                status, alert_name, service,
                 annotations.get("summary", ""),
-                prometheus_snapshot,
-                recent_logs,
+                prometheus_snapshot, recent_logs,
             )
+
+            try:
+                await client.post(
+                    NOTIFIER_URL,
+                    json={
+                        "service": service,
+                        "alertname": alert_name,
+                        "summary": annotations.get("summary", ""),
+                        "analysis": analysis,
+                    },
+                    timeout=10.0,
+                )
+                log.info("Notification sent for alert=%s service=%s", alert_name, service)
+            except Exception as e:
+                log.warning("Failed to notify: %s", str(e))
 
     return {"status": "accepted", "alerts_received": len(alerts)}
 
